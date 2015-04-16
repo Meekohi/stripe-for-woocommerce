@@ -24,22 +24,24 @@ class S4WC_API {
 
         // Create a customer on Stripe servers
         $customer = S4WC_API::post_data( $customer_data, 'customers' );
+        
+        if( isset( $user_id ) ) {
+            $active_card = $customer->cards->data[ array_search( $customer->default_card, $customer->cards->data ) ];
 
-        $active_card = $customer->cards->data[ array_search( $customer->default_card, $customer->cards->data ) ];
-
-        // Save users customer information for later use
-        $customerArray = array(
-            'customer_id'   => $customer->id,
-            'card'          => array(
-                'id'            => $active_card->id,
-                'brand'         => $active_card->type,
-                'last4'         => $active_card->last4,
-                'exp_year'      => $active_card->exp_year,
-                'exp_month'     => $active_card->exp_month
-            ),
-            'default_card'  => $active_card->id
-        );
-        S4WC_DB::update_customer( $user_id, $customerArray );
+            // Save users customer information for later use
+            $customerArray = array(
+                'customer_id'   => $customer->id,
+                'card'          => array(
+                    'id'            => $active_card->id,
+                    'brand'         => $active_card->type,
+                    'last4'         => $active_card->last4,
+                    'exp_year'      => $active_card->exp_year,
+                    'exp_month'     => $active_card->exp_month
+                ),
+                'default_card'  => $active_card->id
+            );
+            S4WC_DB::update_customer( $user_id, $customerArray );
+        }
 
         return $customer;
     }

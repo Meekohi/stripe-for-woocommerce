@@ -582,59 +582,22 @@ class S4WC_Gateway extends WC_Payment_Gateway {
         global $s4wc;
 
         $output = array();
-        $customer_info = get_user_meta( $this->order->user_id, $s4wc->settings['stripe_db_location'], true );
 
-        if ( $customer_info ) {
+        // Allow options to be set without modifying sensitive data like token, email, etc
+        $customer_data = apply_filters( 's4wc_customer_data', array(), $this->form_data, $this->order );
 
-            // If the user is already registered on the stripe servers, retreive their information
-            $customer = S4WC_API::get_customer( $customer_info['customer_id'] );
+        // Set default customer description
+        $customer_description = $this->form_data['customer']['name']; // Full Name
 
-            // If the user doesn't have cards or is adding a new one
-            if ( $this->form_data['chosen_card'] === 'new' ) {
+        // Set up basics for customer
+        $customer_data['description'] = apply_filters( 's4wc_customer_description', $customer_description, $this->form_data, $this->order );
+        $customer_data['email']       = $this->form_data['customer']['billing_email'];
+        $customer_data['card']        = $this->form_data['token'];
 
-                // Add new card on stripe servers and make default
-                $card = S4WC_API::update_customer( $customer_info['customer_id'] . '/cards', array(
-                    'card' => $this->form_data['token']
-                ) );
+        // Create the customer in the api with the above data
+        $customer = S4WC_API::create_customer( NULL , $customer_data );
 
-                // Add new customer details to database
-                S4WC_DB::update_customer( $this->order->user_id, array(
-                    'customer_id'  => $customer->id,
-                    'card'         => array(
-                        'id'        => $card->id,
-                        'brand'     => $card->brand,
-                        'last4'     => $card->last4,
-                        'exp_month' => $card->exp_month,
-                        'exp_year'  => $card->exp_year,
-                    ),
-                    'default_card' => $card->id
-                ) );
-
-                $output['card'] = $card->id;
-            } else {
-                $output['card'] = $customer_info['cards'][ intval( $this->form_data['chosen_card'] ) ]['id'];
-            }
-
-        } else {
-
-            $user = get_userdata( $this->order->user_id );
-
-            // Allow options to be set without modifying sensitive data like token, email, etc
-            $customer_data = apply_filters( 's4wc_customer_data', array(), $this->form_data, $this->order );
-
-            // Set default customer description
-            $customer_description = $user->user_login . ' (#' . $this->order->user_id . ' - ' . $user->user_email . ') ' . $this->form_data['customer']['name']; // username (user_id - user_email) Full Name
-
-            // Set up basics for customer
-            $customer_data['description'] = apply_filters( 's4wc_customer_description', $customer_description, $this->form_data, $this->order );
-            $customer_data['email']       = $this->form_data['customer']['billing_email'];
-            $customer_data['card']        = $this->form_data['token'];
-
-            // Create the customer in the api with the above data
-            $customer = S4WC_API::create_customer( $this->order->user_id, $customer_data );
-
-            $output['card'] = $customer->default_card;
-        }
+        $output['card'] = $customer->default_card;
 
         // Set up charging data to include customer information
         $output['customer_id'] = $customer->id;
@@ -788,6 +751,9 @@ class S4WC_Gateway extends WC_Payment_Gateway {
             }
 
         } else {
+            // Always create a new customer, so that we can charge them again later
+            $customer = $this->get_customer();
+            $stripe_charge_data['customer'] = $customer['customer_id'];
 
             // Set up one time charge
             $stripe_charge_data['card'] = $this->form_data['token'];
