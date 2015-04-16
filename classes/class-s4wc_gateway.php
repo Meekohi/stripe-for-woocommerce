@@ -754,9 +754,6 @@ class S4WC_Gateway extends WC_Payment_Gateway {
             // Always create a new customer, so that we can charge them again later
             $customer = $this->get_customer();
             $stripe_charge_data['customer'] = $customer['customer_id'];
-
-            // Set up one time charge
-            $stripe_charge_data['card'] = $this->form_data['token'];
         }
 
         // Charge description
